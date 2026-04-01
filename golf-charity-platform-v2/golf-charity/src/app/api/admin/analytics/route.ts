@@ -3,6 +3,9 @@ import { NextResponse } from 'next/server';
 import { requireAdmin } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { SUBSCRIPTION_FEES } from '@/lib/draw-engine';
+
+export const dynamic = 'force-dynamic';
+
 export async function GET() {
   try {
     await requireAdmin();
@@ -45,13 +48,14 @@ export async function GET() {
         orderBy: { createdAt: 'desc' },
       }),
     ]);
-    // Calculate prize pool from fee minus charity contribution
+
     const monthlyPrizePool = activeSubscriptions.reduce((sum, sub) => {
       const fee = sub.plan === 'YEARLY'
         ? SUBSCRIPTION_FEES.YEARLY
         : SUBSCRIPTION_FEES.MONTHLY;
       return sum + (fee - sub.charityContribution);
     }, 0);
+
     return NextResponse.json({
       users: {
         total: totalUsers,
@@ -66,8 +70,8 @@ export async function GET() {
       draws: drawStats,
       pendingPayouts: recentWinners,
     });
-  } catch(err) {
+  } catch (err) {
     console.error('Analytics error:', err);
-  return NextResponse.json({ error: String(err) }, { status: 500 });
+    return NextResponse.json({ error: String(err) }, { status: 500 });
   }
-} make it againa for copy paste
+}
