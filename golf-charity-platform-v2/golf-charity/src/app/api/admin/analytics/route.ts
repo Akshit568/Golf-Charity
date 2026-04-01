@@ -70,7 +70,7 @@ export async function GET() {
       draws: drawStats,
       pendingPayouts: recentWinners,
     });
-  } catch {
+  } catch(err) {
     console.error('Analytics error:', err);
   return NextResponse.json({ error: String(err) }, { status: 500 });
   }
