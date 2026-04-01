@@ -3,11 +3,9 @@ import { NextResponse } from 'next/server';
 import { requireAdmin } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { SUBSCRIPTION_FEES } from '@/lib/draw-engine';
-
 export async function GET() {
   try {
     await requireAdmin();
-
     const [
       totalUsers,
       activeSubscribers,
@@ -47,7 +45,6 @@ export async function GET() {
         orderBy: { createdAt: 'desc' },
       }),
     ]);
-
     // Calculate prize pool from fee minus charity contribution
     const monthlyPrizePool = activeSubscriptions.reduce((sum, sub) => {
       const fee = sub.plan === 'YEARLY'
@@ -55,7 +52,6 @@ export async function GET() {
         : SUBSCRIPTION_FEES.MONTHLY;
       return sum + (fee - sub.charityContribution);
     }, 0);
-
     return NextResponse.json({
       users: {
         total: totalUsers,
@@ -74,4 +70,4 @@ export async function GET() {
     console.error('Analytics error:', err);
   return NextResponse.json({ error: String(err) }, { status: 500 });
   }
-}
+} make it againa for copy paste
