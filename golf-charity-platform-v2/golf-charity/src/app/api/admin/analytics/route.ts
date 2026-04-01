@@ -2,6 +2,7 @@
 import { NextResponse } from 'next/server';
 import { requireAdmin } from '@/lib/auth';
 import { db } from '@/lib/db';
+import { SUBSCRIPTION_FEES } from '@/lib/draw-engine';
 
 export async function GET() {
   try {
@@ -12,7 +13,7 @@ export async function GET() {
       activeSubscribers,
       monthlyCount,
       yearlyCount,
-      totalPrizePool,
+      activeSubscriptions,
       charityContributions,
       drawStats,
       recentWinners,
@@ -21,9 +22,9 @@ export async function GET() {
       db.subscription.count({ where: { status: 'ACTIVE' } }),
       db.subscription.count({ where: { status: 'ACTIVE', plan: 'MONTHLY' } }),
       db.subscription.count({ where: { status: 'ACTIVE', plan: 'YEARLY' } }),
-      db.subscription.aggregate({
+      db.subscription.findMany({
         where: { status: 'ACTIVE' },
-        _sum: { prizePoolContribution: true },
+        select: { plan: true, charityContribution: true },
       }),
       db.subscription.aggregate({
         where: { status: 'ACTIVE' },
@@ -47,6 +48,14 @@ export async function GET() {
       }),
     ]);
 
+    // Calculate prize pool from fee minus charity contribution
+    const monthlyPrizePool = activeSubscriptions.reduce((sum, sub) => {
+      const fee = sub.plan === 'YEARLY'
+        ? SUBSCRIPTION_FEES.YEARLY
+        : SUBSCRIPTION_FEES.MONTHLY;
+      return sum + (fee - sub.charityContribution);
+    }, 0);
+
     return NextResponse.json({
       users: {
         total: totalUsers,
@@ -55,8 +64,8 @@ export async function GET() {
         yearly: yearlyCount,
       },
       finance: {
-        monthlyPrizePool: totalPrizePool._sum.prizePoolContribution ?? 0,
-        monthlyCharity:   charityContributions._sum.charityContribution ?? 0,
+        monthlyPrizePool,
+        monthlyCharity: charityContributions._sum.charityContribution ?? 0,
       },
       draws: drawStats,
       pendingPayouts: recentWinners,
