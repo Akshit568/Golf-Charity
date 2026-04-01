@@ -37,7 +37,6 @@ export function generateRandomDraw(): number[] {
  * Increases jackpot probability for engaged players
  */
 export async function generateAlgorithmicDraw(drawId?: string): Promise<number[]> {
-  // Get all scores from active subscribers
   const scores = await db.golfScore.findMany({
     where: {
       user: {
@@ -47,21 +46,18 @@ export async function generateAlgorithmicDraw(drawId?: string): Promise<number[]
     select: { score: true },
   });
 
-  // Build frequency map
   const frequency = new Map<number, number>();
   for (let i = 1; i <= 45; i++) frequency.set(i, 0);
   for (const { score } of scores) {
     frequency.set(score, (frequency.get(score) ?? 0) + 1);
   }
 
-  // Invert frequency for weighting (less common = higher weight)
   const maxFreq = Math.max(...frequency.values()) + 1;
   const weights = Array.from({ length: 45 }, (_, i) => ({
     number: i + 1,
     weight: maxFreq - (frequency.get(i + 1) ?? 0),
   }));
 
-  // Weighted random selection
   const drawn: number[] = [];
   const available = [...weights];
 
@@ -98,7 +94,6 @@ export function getMatchType(matches: number): MatchType | null {
 // ── Prize Calculation ─────────────────────────────────────────────────────────
 
 export async function calculatePrizePool(month: number, year: number) {
-  // Count active subscribers
   const activeCount = await db.subscription.count({
     where: { status: 'ACTIVE' },
   });
@@ -108,13 +103,14 @@ export async function calculatePrizePool(month: number, year: number) {
     select: { plan: true, charityContribution: true },
   });
 
-  // Total prize contributions
-  const totalPrizePool = subscriptions.reduce(
-    (sum, sub) => sum + sub.prizePoolContribution,
-    0
-  );
+  // Total prize contributions (fee minus charity contribution)
+  const totalPrizePool = subscriptions.reduce((sum, sub) => {
+    const fee = sub.plan === 'YEARLY'
+      ? SUBSCRIPTION_FEES.YEARLY
+      : SUBSCRIPTION_FEES.MONTHLY;
+    return sum + (fee - sub.charityContribution);
+  }, 0);
 
-  // Check for jackpot rollover from previous month
   const prevMonth = month === 1 ? 12 : month - 1;
   const prevYear = month === 1 ? year - 1 : year;
   const prevDraw = await db.draw.findFirst({
@@ -145,13 +141,11 @@ export async function executeDraw(drawId: string): Promise<{
   });
   if (!draw) throw new Error('Draw not found');
 
-  // Generate numbers
   const drawnNumbers =
     draw.drawType === 'ALGORITHMIC'
       ? await generateAlgorithmicDraw(drawId)
       : generateRandomDraw();
 
-  // Find winners
   const winnerGroups: Record<string, string[]> = {
     FIVE_NUMBER: [],
     FOUR_NUMBER: [],
@@ -166,7 +160,6 @@ export async function executeDraw(drawId: string): Promise<{
     }
   }
 
-  // Calculate individual prizes (split equally among tier winners)
   const prizes: { userId: string; matchType: MatchType; prize: number }[] = [];
 
   for (const [matchType, userIds] of Object.entries(winnerGroups)) {
@@ -183,10 +176,8 @@ export async function executeDraw(drawId: string): Promise<{
     }
   }
 
-  // Jackpot rollover if no 5-match winner
   const hasJackpotWinner = winnerGroups.FIVE_NUMBER.length > 0;
 
-  // Persist results
   await db.$transaction([
     db.draw.update({
       where: { id: drawId },
