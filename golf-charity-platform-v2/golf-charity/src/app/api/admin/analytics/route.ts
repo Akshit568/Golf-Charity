@@ -71,6 +71,7 @@ export async function GET() {
       pendingPayouts: recentWinners,
     });
   } catch {
-    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    console.error('Analytics error:', err);
+  return NextResponse.json({ error: String(err) }, { status: 500 });
   }
 }
